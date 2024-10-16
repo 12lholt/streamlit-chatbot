@@ -1,4 +1,4 @@
 streamlit
 azure-search-documents
 openai
-dotenv
+python-dotenv
