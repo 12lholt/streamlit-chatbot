@@ -26,6 +26,13 @@ openai_key = os.getenv("OPENAI_API_KEY")
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_key)
 
+# Valid passwords and their corresponding business IDs
+VALID_PASSWORDS = {
+    'MX001': 'MX001',
+    'BS1T001': 'BS1T001',
+    'BS2T001': 'BS2T001'
+}
+
 # Function to generate embeddings
 def generate_embedding(text):
     headers = {
@@ -46,13 +53,13 @@ def generate_embedding(text):
         raise Exception(f"Error generating embedding: {response.text}")
 
 # Function to perform hybrid search
-def hybrid_search(query, business_id=None, top_k=5, score_threshold=0.02):
+def hybrid_search(query, business_id, top_k=5, score_threshold=0.02):
     search_client = SearchClient(endpoint=search_endpoint,
                                  index_name=index_name,
                                  credential=AzureKeyCredential(search_api_key))
 
     vector_query = VectorizableTextQuery(text=query, k_nearest_neighbors=top_k, fields="embedding")
-    filter_expression = f"business_id eq '{business_id}'" if business_id else None
+    filter_expression = f"business_id eq '{business_id}'"
 
     results = search_client.search(
         search_text=query,
@@ -115,57 +122,64 @@ def extract_string(input_string):
 def main():
     st.title("Restaurant Review Analysis")
 
-    # User input
-    query = st.text_input("Enter your question about the restaurant:")
-    business_id = st.text_input("Enter the business ID (optional):")
+    # Check if the user is authenticated
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
 
-    if st.button("Search", type="primary"):
-        if query:
-            # Generate search terms
-            completion = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
-                ]
-            )
-            search_term = completion.choices[0].message.content
-            extracted_string = extract_string(search_term)
+    # If not authenticated, show login form
+    if not st.session_state.authenticated:
+        password = st.text_input("Enter password:", type="password")
+        if st.button("Login"):
+            if password in VALID_PASSWORDS:
+                st.session_state.authenticated = True
+                st.session_state.business_id = VALID_PASSWORDS[password]
+                st.experimental_rerun()
+            else:
+                st.error("Invalid password. Please try again.")
+    else:
+        # User input
+        query = st.text_input("Enter your question about the restaurant:")
 
-            # Perform search
-            results = hybrid_search(extracted_string, business_id=business_id, top_k=10)
+        if st.button("Search", type="primary"):
+            if query:
+                # Generate search terms
+                completion = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": query}
+                    ]
+                )
+                search_term = completion.choices[0].message.content
+                extracted_string = extract_string(search_term)
 
-            # # Display results
-            # st.subheader("Search Results")
-            # for i, result in enumerate(results, 1):
-            #     st.write(f"Result {i}:")
-            #     st.write(f"Review ID: {result['review_id']}")
-            #     st.write(f"Business ID: {result['business_id']}")
-            #     st.write(f"Location: {result['location']}")
-            #     st.write(f"Date: {result['date']}")
-            #     st.write(f"Overall Score: {result['score']}")
-            #     st.write(f"Content: {result['review_content']}")
-            #     st.write("---")
+                # Perform search
+                results = hybrid_search(extracted_string, business_id=st.session_state.business_id, top_k=10)
 
-            # Prepare query and results for analysis
-            query_and_results = f"The user asked: {query}\n"
-            for i, result in enumerate(results, 1):
-                query_and_results += f"\nCustomer Reviews {i}:\n"
-                query_and_results += f"{result['review_content']}\n"
+                # Prepare query and results for analysis
+                query_and_results = f"The user asked: {query}\n"
+                for i, result in enumerate(results, 1):
+                    query_and_results += f"\nCustomer Reviews {i}:\n"
+                    query_and_results += f"{result['review_content']}\n"
 
-            # Generate analysis
-            final_completion = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": analysis_system_prompt},
-                    {"role": "user", "content": query_and_results}
-                ],
-                temperature=0.5
-            )
+                # Generate analysis
+                final_completion = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": analysis_system_prompt},
+                        {"role": "user", "content": query_and_results}
+                    ],
+                    temperature=0.5
+                )
 
-            # Display analysis
-            st.subheader("Analysis")
-            st.write(final_completion.choices[0].message.content)
+                # Display analysis
+                st.subheader("Analysis")
+                st.write(final_completion.choices[0].message.content)
+
+        # Add a logout button
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
