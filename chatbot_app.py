@@ -86,28 +86,36 @@ def hybrid_search(query, business_id, top_k=5, score_threshold=0.02):
 # System prompts
 system_prompt = """
 You are an intelligent search engine assistant integrated with Azure AI Search. Your role is to transform natural language user queries into optimized search phrases to extract the most relevant results from an index of customer reviews and feedback.
-
 Follow these key guidelines when generating search terms:
+Extract Root Terms: Focus on root words or short phrases that capture the essence of the query. Focus on products or services.These are typically nouns. Avoid unnecessary details unless they are critical to the search intent.
 
-Extract Root Terms: Focus on root words or short phrases that capture the essence of the query. Avoid unnecessary details unless they are critical to the search intent.
+Examples:
+Input: "What are the best pizza places in my area?"
+Output: ['pizza places']
 
-Relevance to Reviews: Assume the index contains reviews, ratings, and feedback, so there is no need to include terms like "feedback," "opinions," or "reviews" unless they are central to the specific query.
+Input: "How do people feel about our bean burritos?"
+Output: ['bean burritos']
 
-Precision Over Completeness: Generate terms that prioritize precision. Your goal is to return the most accurate search results while using the appropriate terms necessary to capture the full intent or context of the query. Unnecessary search terms will dilute results.
+Input: "What do people think about our customer service?"
+Output: ['customer service']
 
-Context-Sensitive Simplification: Reduce the query to its core meaning, focusing on elements like product names, features, attributes, and services when relevant. Omit unnecessary details or extraneous modifiers that are unlikely to impact search relevance.
-
-Variations for Ambiguous Queries: For queries with potential ambiguities, include common variations (e.g., "loud" when querying about "background music").
-
-No Superfluous Content: Avoid adding terms that are already implicit in the query context (e.g., "customer," "guest," or "restaurant" unless distinguishing between different entities is necessary).
+Input: "What do people think about our nachos?"
+Output: ['nachos']
 
 Format: Always return the search terms as a Python array in this format:
-['term1', 'term2', ...]
+['term1', 'term2 (if necessary)', ...]
 """
 
+# Precision Over Completeness: Generate terms that prioritize precision. Your goal is to return the most accurate search results while using the appropriate terms necessary to capture the full intent or context of the query. Unnecessary search terms will dilute results.
+# Context-Sensitive Simplification: Reduce the query to its core meaning, focusing on elements like product names, features, attributes, and services when relevant. Omit unnecessary details or extraneous modifiers that are unlikely to impact search relevance.
+# Relevance to Reviews: Assume the index contains reviews, ratings, and feedback, so there is no need to include terms like "feedback," "opinions," or "reviews" unless they are central to the specific query.
+# No Superfluous Content: Avoid adding terms that are already implicit in the query context (e.g., "customer," "guest," or "restaurant" unless distinguishing between different entities is necessary).
+# Extract Root Terms: Focus on root words or short phrases that capture the essence of the query. These are typically nouns. Avoid unnecessary details unless they are critical to the search intent.
+# Variations for Ambiguous Queries: For queries with potential ambiguities, include common variations (e.g., "loud" when querying about "background music").
 analysis_system_prompt = """
 You're an incredibly insightful, optimistic, professional consultant for business owners evaluating customer feedback.
 Be smart. You will be supplied a query from the owner, and reviews. Some review material will be extremely helpful and revelant, other parts won't be.
+Once you've read through the reviews, give the owner some idea of how many were positive, how many were negative, and how many were neutral. Feel free to use percentages.
 Make sure you directly answer the question asked by the owner, nothing more.
 At the end of your analysis, provide the customer reviews you used to form your answer.
 If none of the reviews are relevant, present the next closest relevant reviews and ask if the business owner would like to know about those instead.
@@ -130,10 +138,10 @@ def main():
     if not st.session_state.authenticated:
         password = st.text_input("Enter password:", type="password")
         if st.button("Login"):
-            if password in VALID_PASSWORDS:
+            if password in VALID_PASSWORDS.keys():
                 st.session_state.authenticated = True
                 st.session_state.business_id = VALID_PASSWORDS[password]
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Invalid password. Please try again.")
     else:
@@ -144,7 +152,7 @@ def main():
             if query:
                 # Generate search terms
                 completion = client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": query}
@@ -152,7 +160,7 @@ def main():
                 )
                 search_term = completion.choices[0].message.content
                 extracted_string = extract_string(search_term)
-
+                st.write(extracted_string)
                 # Perform search
                 results = hybrid_search(extracted_string, business_id=st.session_state.business_id, top_k=10)
 
@@ -164,7 +172,7 @@ def main():
 
                 # Generate analysis
                 final_completion = client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": analysis_system_prompt},
                         {"role": "user", "content": query_and_results}
@@ -179,7 +187,7 @@ def main():
         # Add a logout button
         if st.button("Logout"):
             st.session_state.authenticated = False
-            st.experimental_rerun()
+            st.rerun()
 
 if __name__ == "__main__":
     main()
