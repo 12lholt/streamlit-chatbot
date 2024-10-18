@@ -160,7 +160,7 @@ def main():
                 )
                 search_term = completion.choices[0].message.content
                 extracted_string = extract_string(search_term)
-                st.write(extracted_string)
+                st.write(f"Search term: '{extracted_string}'")
                 # Perform search
                 results = hybrid_search(extracted_string, business_id=st.session_state.business_id, top_k=10)
 
