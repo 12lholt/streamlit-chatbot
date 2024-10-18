@@ -146,7 +146,7 @@ def main():
                 st.error("Invalid password. Please try again.")
     else:
         # User input
-        query = st.text_input("Enter your question about the restaurant:")
+        query = st.text_input("Ask about your business: (e.g., 'How do customers like our nachos?' or 'What do people think about our service?')")
 
         if st.button("Search", type="primary"):
             if query:
@@ -163,7 +163,6 @@ def main():
                 st.write(f"Search term: '{extracted_string}'")
                 # Perform search
                 results = hybrid_search(extracted_string, business_id=st.session_state.business_id, top_k=10)
-
                 # Prepare query and results for analysis
                 query_and_results = f"The user asked: {query}\n"
                 for i, result in enumerate(results, 1):
